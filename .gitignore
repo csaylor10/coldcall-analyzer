@@ -20,3 +20,4 @@ dump.rdb
 # OS cruft
 .DS_Store
 myenv/
+venv/
