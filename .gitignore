@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter junk
+.ipynb_checkpoints/
+
+# Node / React
+node_modules/
+npm-debug.log*
+
+# Private data & big binaries
+.env
+database.db
+uploads/
+*.wav
+dump.rdb
+
+# OS cruft
+.DS_Store
