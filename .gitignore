@@ -24,3 +24,4 @@ venv/
 venv/
 __pycache__/
 *.pyc
+/frontend/app/venv/
