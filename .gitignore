@@ -21,3 +21,6 @@ dump.rdb
 .DS_Store
 myenv/
 venv/
+venv/
+__pycache__/
+*.pyc
