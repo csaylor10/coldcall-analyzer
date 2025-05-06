@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y \
     gcc \
     python3-dev \
     build-essential \
+    redis-server \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -50,5 +52,11 @@ COPY models.py .
 # Copy the built frontend
 COPY --from=frontend-builder /frontend/build/ ./static
 
+RUN mkdir -p /app/uploads
+
+COPY supervisord.conf /etc/supervisord.conf
+
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+
 # Default command (will be overridden in docker-compose.yml for Celery worker)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
