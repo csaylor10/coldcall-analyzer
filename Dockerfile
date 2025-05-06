@@ -46,6 +46,7 @@ COPY nltk_data/ ./nltk_data
 COPY celery_worker.py .
 COPY .env .
 COPY env .
+COPY models.py .
 # Copy the built frontend
 COPY --from=frontend-builder /frontend/build/ ./static
 
