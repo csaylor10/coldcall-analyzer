@@ -1,0 +1,36 @@
+# Core dependencies, all versions pinned for stability
+fastapi==0.110.0
+fastapi-users[sqlalchemy]==12.1.2
+sqlalchemy[asyncio]==2.0.29
+aiosqlite==0.19.0
+uvicorn[standard]==0.29.0
+openai<1.0.0
+
+# Audio transcription and diarization
+whisperx==3.3.2
+torch==2.2.2           # CPU version; for GPU, see note below
+torchaudio==2.2.2      # CPU version; for GPU, see note below
+
+# File upload and processing
+python-multipart==0.0.6
+pydub==0.25.1
+ffmpeg-python==0.2.0
+
+# ML and Huggingface
+huggingface_hub==0.30.2
+pyannote.audio==3.3.2
+
+# Core scientific stack
+numpy==1.26.4
+
+# Optional: alternative/legacy transcription
+faster-whisper==1.1.0
+
+# Transformers ecosystem
+transformers==4.51.3
+tokenizers==0.21.1   # <-- corrected to latest available version
+
+# --- Notes ---
+# For CUDA (GPU) support, after creating your venv, run:
+# pip install torch==2.2.2+cu118 torchaudio==2.2.2+cu118 --index-url [https://download.pytorch.org/whl/cu118](https://download.pytorch.org/whl/cu118)
+# Only do this if your system has CUDA 11.8 and a compatible GPU.

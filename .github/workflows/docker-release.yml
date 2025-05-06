@@ -40,7 +40,7 @@ jobs:
               branch_name=$(echo "${{ github.ref }}" | sed -E 's|^refs/(heads|tags)/||' || echo "")
           fi
           if [[ -z "$branch_name" ]]; then
-              branch_name="main"
+              branch_name="master"
           fi
 
           # Sanitize branch_name to remove unsafe characters
@@ -56,7 +56,7 @@ jobs:
       # # Step 4: Create .env file based on branch
       # - name: Create .env File
       #   run: |
-      #     if [[ "${{ env.branch_name }}" == "main" ]]; then
+      #     if [[ "${{ env.branch_name }}" == "master" ]]; then
       #       echo "${{ secrets.DOTENV_FILE_PROD }}" >> ./frontend/.env
       #     else
       #       echo "${{ secrets.DOTENV_FILE }}" >> ./frontend/.env
@@ -66,7 +66,7 @@ jobs:
       - name: Define Image Tags
         id: image_tags
         run: |
-          if [[ "${{ env.branch_name }}" == "main" ]]; then
+          if [[ "${{ env.branch_name }}" == "master" ]]; then
             echo "env_tag=prod" >> $GITHUB_ENV
           elif [[ "${{ env.branch_name }}" == "staging" ]]; then
             echo "env_tag=stage" >> $GITHUB_ENV
