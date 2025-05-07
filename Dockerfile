@@ -1,11 +1,11 @@
-# FROM oven/bun:latest AS frontend-builder
+FROM oven/bun:latest AS frontend-builder
 
-# WORKDIR /frontend
+WORKDIR /frontend
 
-# COPY frontend/ .
+COPY frontend/ .
 
-# RUN bun install
-# RUN bun run build
+RUN bun install
+RUN bun run build
 
 # Use Python 3.11 slim base image
 FROM python:3.10-slim
@@ -52,7 +52,7 @@ COPY env .
 COPY models.py .
 COPY audio_utils.py .
 # Copy the built frontend
-# COPY --from=frontend-builder /frontend/build/ ./static
+COPY --from=frontend-builder /frontend/build/ ./static
 
 RUN mkdir -p /app/uploads
 

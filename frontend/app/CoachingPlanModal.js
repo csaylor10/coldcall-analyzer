@@ -1,3 +1,4 @@
+"use client";
 import React from "react";
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, CircularProgress, Alert, Typography } from "@mui/material";
 

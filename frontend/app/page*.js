@@ -61,13 +61,13 @@ import { keyframes } from '@mui/system';
 const theme = createTheme({
   palette: {
     mode: "light",
-    primary:   { main: "#0F2A54" },
+    primary: { main: "#0F2A54" },
     secondary: { main: "#00D1FF" },
-    success:   { main: "#00C36F" },
-    warning:   { main: "#FFB42A" },
-    error:     { main: "#FF3B30" },
-    background:{ default: "#F4F6F8", paper: "#FFFFFF" },
-    text:      { primary:"#21262E", secondary:"#707A8A" }
+    success: { main: "#00C36F" },
+    warning: { main: "#FFB42A" },
+    error: { main: "#FF3B30" },
+    background: { default: "#F4F6F8", paper: "#FFFFFF" },
+    text: { primary: "#21262E", secondary: "#707A8A" }
   }
 });
 
@@ -298,18 +298,16 @@ function buildAnalysisHtml({ filename, full_analysis_content, red_flags, red_fla
     <div class="analysis-content">
       ${full_analysis_content.replace(/\n/g, "<br />")}
     </div>
-    ${
-      red_flags === "Yes"
-        ? `<div class="red-flags">
+    ${red_flags === "Yes"
+      ? `<div class="red-flags">
       <h2>🚩 Red Flags Detected</h2>
       <p><strong>Reason:</strong> ${red_flag_reason || "N/A"}</p>
-      ${
-        red_flag_quotes !== "None"
-          ? `<blockquote>${red_flag_quotes}</blockquote>`
-          : ""
+      ${red_flag_quotes !== "None"
+        ? `<blockquote>${red_flag_quotes}</blockquote>`
+        : ""
       }
     </div>`
-        : ""
+      : ""
     }
     <hr style="margin:2em 0;">
     <footer>Generated automatically by Greener Living AI Analysis.</footer>
@@ -647,7 +645,7 @@ export default function Home() {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('custom_red_flags', JSON.stringify(customRedFlags));
-        const res = await apiClient.post('/upload/', formData, {
+        const res = await apiClient.post('/audio/', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 10 * 60 * 1000,
           onUploadProgress: (progressEvent) => {
@@ -746,7 +744,7 @@ export default function Home() {
     setCoachingPrompt("");
     setCoachingResult("");
     setCoachingError("");
-    setCoachingRep(rep); 
+    setCoachingRep(rep);
     console.log('Opening coaching modal for rep:', rep);
     console.log('repStats[rep]:', repStats[rep]);
     const repAnalyses = (repStats[rep] || []).map(dl => {
@@ -765,7 +763,7 @@ export default function Home() {
   const handleGenerateCoaching = async () => {
     // Only use the coaching plans, not full analyses
     const analysesText = coachingAnalyses.length > 0
-      ? coachingAnalyses.map((a, i) => `Coaching Plan #${i+1}:\n${a}`).join("\n\n")
+      ? coachingAnalyses.map((a, i) => `Coaching Plan #${i + 1}:\n${a}`).join("\n\n")
       : "";
     const fullPrompt = `${coachingPrompt}\n\nHere are this rep's recent coaching plans:\n${analysesText}`;
     try {
@@ -913,7 +911,7 @@ export default function Home() {
               </Button>
             </Box>
             {/* Sidebar navigation sections */}
-            <List sx={{px: 1, pt: 2, gap: 2, flexGrow: 1}}>
+            <List sx={{ px: 1, pt: 2, gap: 2, flexGrow: 1 }}>
               {/* Custom Red Flags Section */}
               <Tooltip title="Custom Red Flags" placement="right" arrow disableHoverListener={true}>
                 <ListItem disablePadding sx={{ display: 'block', borderRadius: 2, mb: 1, borderLeft: redFlagsOpen ? '4px solid #00D1FF' : '4px solid transparent', transition: 'all 0.2s' }}>
@@ -929,7 +927,7 @@ export default function Home() {
                     placeholder="Add Red Flag"
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { setCustomRedFlags([...customRedFlags, input.trim()]); setInput(''); }}}
+                    onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { setCustomRedFlags([...customRedFlags, input.trim()]); setInput(''); } }}
                     size="small"
                     fullWidth
                     sx={{ mb: 1, bgcolor: '#f5f7fa', borderRadius: 2, '& .MuiOutlinedInput-root': { fontSize: 14, height: 36 } }}
@@ -964,7 +962,7 @@ export default function Home() {
                     placeholder="Add Rep Name"
                     value={repInput}
                     onChange={e => setRepInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && repInput.trim()) { setCurrentReps([...currentReps, repInput.trim()]); setRepInput(''); }}}
+                    onKeyDown={e => { if (e.key === 'Enter' && repInput.trim()) { setCurrentReps([...currentReps, repInput.trim()]); setRepInput(''); } }}
                     size="small"
                     fullWidth
                     sx={{ mb: 1, bgcolor: '#f5f7fa', borderRadius: 2, '& .MuiOutlinedInput-root': { fontSize: 14, height: 36 } }}

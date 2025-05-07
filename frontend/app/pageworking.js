@@ -40,13 +40,13 @@ import JSZip from "jszip";
 const theme = createTheme({
   palette: {
     mode: "light",
-    primary:   { main: "#0F2A54" },
+    primary: { main: "#0F2A54" },
     secondary: { main: "#00D1FF" },
-    success:   { main: "#00C36F" },
-    warning:   { main: "#FFB42A" },
-    error:     { main: "#FF3B30" },
-    background:{ default: "#F4F6F8", paper: "#FFFFFF" },
-    text:      { primary:"#21262E", secondary:"#707A8A" }
+    success: { main: "#00C36F" },
+    warning: { main: "#FFB42A" },
+    error: { main: "#FF3B30" },
+    background: { default: "#F4F6F8", paper: "#FFFFFF" },
+    text: { primary: "#21262E", secondary: "#707A8A" }
   }
 });
 
@@ -179,7 +179,7 @@ function RedFlagsManager({ jwt, customRedFlags, setCustomRedFlags, onSave }) {
       try {
         const res = await apiClient.get("/red-flags/");
         setCustomRedFlags(res.data.custom_red_flags || []);
-      } catch (e) {}
+      } catch (e) { }
       setLoading(false);
     }
     fetchFlags();
@@ -590,21 +590,18 @@ export default function Home() {
     <div class="analysis-content">
       ${full_analysis_content.replace(/\n/g, "<br />")}
     </div>
-    ${
-      red_flags === "Yes"
-        ? `<div class="red-flags">
+    ${red_flags === "Yes"
+                ? `<div class="red-flags">
       <h2>🚩 Red Flags Detected</h2>
-      <p><strong>Reason:</strong> ${
-        red_flag_reason || "N/A"
-      }</p>
-      ${
-        red_flag_quotes !== "None"
-          ? `<blockquote>${red_flag_quotes}</blockquote>`
-          : ""
-      }
+      <p><strong>Reason:</strong> ${red_flag_reason || "N/A"
+                }</p>
+      ${red_flag_quotes !== "None"
+                  ? `<blockquote>${red_flag_quotes}</blockquote>`
+                  : ""
+                }
     </div>`
-        : ""
-    }
+                : ""
+              }
     <hr style="margin:2em 0;">
     <h2>📜 Call Transcript</h2>
     <div class="transcript-block">
@@ -720,388 +717,388 @@ ${transcript ? transcript : "No transcript available."}
   };
 
   // ====================== END OF PART 2/4 ======================
-// ====================== page.js (Part 3/4) ======================
+  // ====================== page.js (Part 3/4) ======================
 
-// --- Upload Handler ---
-const handleDrop = async (acceptedFiles) => {
-  setError("");
-  if (!acceptedFiles.length) return;
-  if (!minutes || isNaN(minutes)) {
-    setError("Unable to retrieve your available minutes. Please refresh or log in again.");
-    return;
-  }
-
-  // Estimate total minutes required
-  let totalMinutesRequired = 0;
-  for (const file of acceptedFiles) {
-    // Estimate using file size (not perfect, but a proxy: 1MB ~ 1 min for mp3, ~10MB ~ 1 min for wav)
-    const ext = file.name.split(".").pop().toLowerCase();
-    let est = 1;
-    if (ext === "mp3" || ext === "m4a" || ext === "aac") {
-      est = Math.max(1, Math.round(file.size / 1_000_000));
-    } else if (ext === "wav" || ext === "flac") {
-      est = Math.max(1, Math.round(file.size / 10_000_000));
+  // --- Upload Handler ---
+  const handleDrop = async (acceptedFiles) => {
+    setError("");
+    if (!acceptedFiles.length) return;
+    if (!minutes || isNaN(minutes)) {
+      setError("Unable to retrieve your available minutes. Please refresh or log in again.");
+      return;
     }
-    totalMinutesRequired += est;
-  }
 
-  if (minutes < totalMinutesRequired) {
-    setError(
-      `You have only ${minutes} minute${minutes === 1 ? "" : "s"} left, but these files may require about ${totalMinutesRequired} minute${totalMinutesRequired === 1 ? "" : "s"} to analyze. Please buy more minutes.`
-    );
-    return;
-  }
-
-  setTotalFiles(acceptedFiles.length);
-  setCompletedAnalyses(0);
-  setStatus("analyzing");
-
-  let inProgressJobs = [];
-  for (const file of acceptedFiles) {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("custom_red_flags", JSON.stringify(customRedFlags));
-    try {
-      setFilePolling(prev => ({
-        ...prev,
-        [file.name]: { pollingMessage: `Uploading "${file.name}"...`, error: "", status: "uploading", name: file.name }
-      }));
-      const res = await apiClient.post("/upload/", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent) => {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(percent);
-        }
-      });
-      setFilePolling(prev => ({
-        ...prev,
-        [res.data.job_id]: { pollingMessage: `Analyzing "${file.name}"...`, error: "", status: "pending", name: file.name }
-      }));
-      inProgressJobs.push({ job_id: res.data.job_id, name: file.name });
-      pollJobStatus(res.data.job_id, file, file.name);
-    } catch (err) {
-      setFilePolling(prev => ({
-        ...prev,
-        [file.name]: {
-          pollingMessage: "",
-          error: `❌ Error uploading "${file.name}": ${err.response?.data?.detail || err.message}`,
-          status: "error",
-          name: file.name
-        }
-      }));
-      setCompletedAnalyses((prev) => prev + 1);
+    // Estimate total minutes required
+    let totalMinutesRequired = 0;
+    for (const file of acceptedFiles) {
+      // Estimate using file size (not perfect, but a proxy: 1MB ~ 1 min for mp3, ~10MB ~ 1 min for wav)
+      const ext = file.name.split(".").pop().toLowerCase();
+      let est = 1;
+      if (ext === "mp3" || ext === "m4a" || ext === "aac") {
+        est = Math.max(1, Math.round(file.size / 1_000_000));
+      } else if (ext === "wav" || ext === "flac") {
+        est = Math.max(1, Math.round(file.size / 10_000_000));
+      }
+      totalMinutesRequired += est;
     }
-  }
-  localStorage.setItem("inProgressJobs", JSON.stringify(inProgressJobs));
-  setStatus("idle");
-};
 
-const { getRootProps, getInputProps, isDragActive } = useDropzone({
-  onDrop: handleDrop,
-  accept: {
-    "audio/*": [".mp3", ".wav", ".m4a", ".aac", ".flac"]
-  },
-  multiple: true
-});
+    if (minutes < totalMinutesRequired) {
+      setError(
+        `You have only ${minutes} minute${minutes === 1 ? "" : "s"} left, but these files may require about ${totalMinutesRequired} minute${totalMinutesRequired === 1 ? "" : "s"} to analyze. Please buy more minutes.`
+      );
+      return;
+    }
 
-// --- Buy Minutes Dialog ---
-const handleBuyMinutes = async () => {
-  setBuyLoading(true);
-  setBuyError("");
-  try {
-    // Simulate payment and add minutes
-    await apiClient.post("/buy-minutes/", { minutes: buyAmount });
-    setBuyDialogOpen(false);
-    setMinutes((prev) => Number(prev) + Number(buyAmount));
-  } catch (e) {
-    setBuyError(e.response?.data?.detail || "Failed to buy minutes.");
-  }
-  setBuyLoading(false);
-};
+    setTotalFiles(acceptedFiles.length);
+    setCompletedAnalyses(0);
+    setStatus("analyzing");
 
-// --- Download All as ZIP ---
-const handleDownloadAll = async () => {
-  const zip = new JSZip();
-  downloads.forEach(dl => {
-    zip.file(dl.name, fetch(dl.url).then(r => r.blob()));
+    let inProgressJobs = [];
+    for (const file of acceptedFiles) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("custom_red_flags", JSON.stringify(customRedFlags));
+      try {
+        setFilePolling(prev => ({
+          ...prev,
+          [file.name]: { pollingMessage: `Uploading "${file.name}"...`, error: "", status: "uploading", name: file.name }
+        }));
+        const res = await apiClient.post("/audio/", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          onUploadProgress: (progressEvent) => {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percent);
+          }
+        });
+        setFilePolling(prev => ({
+          ...prev,
+          [res.data.job_id]: { pollingMessage: `Analyzing "${file.name}"...`, error: "", status: "pending", name: file.name }
+        }));
+        inProgressJobs.push({ job_id: res.data.job_id, name: file.name });
+        pollJobStatus(res.data.job_id, file, file.name);
+      } catch (err) {
+        setFilePolling(prev => ({
+          ...prev,
+          [file.name]: {
+            pollingMessage: "",
+            error: `❌ Error uploading "${file.name}": ${err.response?.data?.detail || err.message}`,
+            status: "error",
+            name: file.name
+          }
+        }));
+        setCompletedAnalyses((prev) => prev + 1);
+      }
+    }
+    localStorage.setItem("inProgressJobs", JSON.stringify(inProgressJobs));
+    setStatus("idle");
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: handleDrop,
+    accept: {
+      "audio/*": [".mp3", ".wav", ".m4a", ".aac", ".flac"]
+    },
+    multiple: true
   });
-  const content = await zip.generateAsync({ type: "blob" });
-  const url = URL.createObjectURL(content);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "call-analyses.zip";
-  a.click();
-  URL.revokeObjectURL(url);
-};
 
-// --- UI ---
-return (
-  <ThemeProvider theme={theme}>
-    <CssBaseline />
-    <AppBar position="static" color="primary" elevation={2}>
-      <Toolbar>
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          Call Analyzer AI
-        </Typography>
-        {jwt && (
-          <>
-            <Chip
-              label={
-                minutes === null
-                  ? "Loading minutes…"
-                  : `${minutes} minute${minutes === 1 ? "" : "s"} left`
-              }
-              color={minutes > 0 ? "success" : "warning"}
-              sx={{ mr: 2 }}
-              onClick={() => setBuyDialogOpen(true)}
-              clickable
-            />
-            <Button
-              color="secondary"
-              variant="outlined"
-              onClick={() => setBuyDialogOpen(true)}
-              sx={{ mr: 2 }}
-            >
-              Buy Minutes
-            </Button>
-            <IconButton color="inherit" onClick={handleLogout}>
-              <LogoutIcon />
-            </IconButton>
-          </>
-        )}
-      </Toolbar>
-    </AppBar>
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
-      {!jwt ? (
-        <AuthForm onAuth={handleAuth} />
-      ) : (
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={4}>
-            <RedFlagsManager
-              jwt={jwt}
-              customRedFlags={customRedFlags}
-              setCustomRedFlags={setCustomRedFlags}
-            />
-            <RepStatsPanel jwt={jwt} />
-          </Grid>
-          <Grid item xs={12} md={8}>
-            <Paper
-              elevation={3}
-              sx={{
-                p: 4,
-                mb: 3,
-                borderRadius: 3,
-                background: "#F7FBFD"
-              }}
-            >
-              <Typography variant="h5" gutterBottom>
-                Upload Call Recordings
-              </Typography>
-              <Box
-                {...getRootProps()}
+  // --- Buy Minutes Dialog ---
+  const handleBuyMinutes = async () => {
+    setBuyLoading(true);
+    setBuyError("");
+    try {
+      // Simulate payment and add minutes
+      await apiClient.post("/buy-minutes/", { minutes: buyAmount });
+      setBuyDialogOpen(false);
+      setMinutes((prev) => Number(prev) + Number(buyAmount));
+    } catch (e) {
+      setBuyError(e.response?.data?.detail || "Failed to buy minutes.");
+    }
+    setBuyLoading(false);
+  };
+
+  // --- Download All as ZIP ---
+  const handleDownloadAll = async () => {
+    const zip = new JSZip();
+    downloads.forEach(dl => {
+      zip.file(dl.name, fetch(dl.url).then(r => r.blob()));
+    });
+    const content = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "call-analyses.zip";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- UI ---
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AppBar position="static" color="primary" elevation={2}>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Call Analyzer AI
+          </Typography>
+          {jwt && (
+            <>
+              <Chip
+                label={
+                  minutes === null
+                    ? "Loading minutes…"
+                    : `${minutes} minute${minutes === 1 ? "" : "s"} left`
+                }
+                color={minutes > 0 ? "success" : "warning"}
+                sx={{ mr: 2 }}
+                onClick={() => setBuyDialogOpen(true)}
+                clickable
+              />
+              <Button
+                color="secondary"
+                variant="outlined"
+                onClick={() => setBuyDialogOpen(true)}
+                sx={{ mr: 2 }}
+              >
+                Buy Minutes
+              </Button>
+              <IconButton color="inherit" onClick={handleLogout}>
+                <LogoutIcon />
+              </IconButton>
+            </>
+          )}
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        {!jwt ? (
+          <AuthForm onAuth={handleAuth} />
+        ) : (
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={4}>
+              <RedFlagsManager
+                jwt={jwt}
+                customRedFlags={customRedFlags}
+                setCustomRedFlags={setCustomRedFlags}
+              />
+              <RepStatsPanel jwt={jwt} />
+            </Grid>
+            <Grid item xs={12} md={8}>
+              <Paper
+                elevation={3}
                 sx={{
-                  border: "2px dashed #00D1FF",
-                  borderRadius: 2,
-                  p: 3,
-                  textAlign: "center",
-                  mb: 2,
-                  background: isDragActive ? "#E0F7FF" : "#F7FBFD",
-                  cursor: "pointer"
+                  p: 4,
+                  mb: 3,
+                  borderRadius: 3,
+                  background: "#F7FBFD"
                 }}
               >
-                <input {...getInputProps()} />
-                <CloudUploadIcon sx={{ fontSize: 48, color: "#00D1FF" }} />
-                <Typography variant="body1" sx={{ mt: 1 }}>
-                  {isDragActive
-                    ? "Drop the files here…"
-                    : "Drag & drop audio files here, or click to select files"}
+                <Typography variant="h5" gutterBottom>
+                  Upload Call Recordings
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Supported: .mp3, .wav, .m4a, .aac, .flac. Each file ≤ 2 hours.
-                </Typography>
-              </Box>
-              <RecordCallButton onUpload={handleDrop} />
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
-              )}
-              {status === "analyzing" && (
-                <Box sx={{ mt: 3 }}>
-                  <LinearProgress variant="determinate" value={uploadProgress} />
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Uploading… {uploadProgress}%
+                <Box
+                  {...getRootProps()}
+                  sx={{
+                    border: "2px dashed #00D1FF",
+                    borderRadius: 2,
+                    p: 3,
+                    textAlign: "center",
+                    mb: 2,
+                    background: isDragActive ? "#E0F7FF" : "#F7FBFD",
+                    cursor: "pointer"
+                  }}
+                >
+                  <input {...getInputProps()} />
+                  <CloudUploadIcon sx={{ fontSize: 48, color: "#00D1FF" }} />
+                  <Typography variant="body1" sx={{ mt: 1 }}>
+                    {isDragActive
+                      ? "Drop the files here…"
+                      : "Drag & drop audio files here, or click to select files"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Supported: .mp3, .wav, .m4a, .aac, .flac. Each file ≤ 2 hours.
                   </Typography>
                 </Box>
-              )}
-              {Object.keys(filePolling).length > 0 && (
-                <Box sx={{ mt: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Analysis Progress
-                  </Typography>
-                  {Object.entries(filePolling).map(([job_id, poll]) => (
-                    <Box key={job_id} sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2">{poll.name}</Typography>
-                      {poll.pollingMessage && (
-                        <Typography variant="body2" color="text.secondary">
-                          {poll.pollingMessage}
-                        </Typography>
-                      )}
-                      {poll.error && (
-                        <Alert severity="error" sx={{ mt: 1 }}>
-                          {poll.error}
-                        </Alert>
-                      )}
-                      {poll.status === "done" && (
-                        <Alert severity="success" sx={{ mt: 1 }}>
-                          Analysis complete!
-                        </Alert>
-                      )}
-                    </Box>
-                  ))}
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    sx={{ mt: 2 }}
-                    onClick={handleStopAnalyzing}
-                  >
-                    Stop Analyzing
-                  </Button>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {completedAnalyses}/{totalFiles} files analyzed.
-                  </Typography>
-                </Box>
-              )}
-            </Paper>
-            <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Download Reports
-              </Typography>
-              {downloads.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  No analysis reports yet.
+                <RecordCallButton onUpload={handleDrop} />
+                {error && (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+                {status === "analyzing" && (
+                  <Box sx={{ mt: 3 }}>
+                    <LinearProgress variant="determinate" value={uploadProgress} />
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Uploading… {uploadProgress}%
+                    </Typography>
+                  </Box>
+                )}
+                {Object.keys(filePolling).length > 0 && (
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="h6" gutterBottom>
+                      Analysis Progress
+                    </Typography>
+                    {Object.entries(filePolling).map(([job_id, poll]) => (
+                      <Box key={job_id} sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2">{poll.name}</Typography>
+                        {poll.pollingMessage && (
+                          <Typography variant="body2" color="text.secondary">
+                            {poll.pollingMessage}
+                          </Typography>
+                        )}
+                        {poll.error && (
+                          <Alert severity="error" sx={{ mt: 1 }}>
+                            {poll.error}
+                          </Alert>
+                        )}
+                        {poll.status === "done" && (
+                          <Alert severity="success" sx={{ mt: 1 }}>
+                            Analysis complete!
+                          </Alert>
+                        )}
+                      </Box>
+                    ))}
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      sx={{ mt: 2 }}
+                      onClick={handleStopAnalyzing}
+                    >
+                      Stop Analyzing
+                    </Button>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      {completedAnalyses}/{totalFiles} files analyzed.
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
+              <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  Download Reports
                 </Typography>
-              ) : (
-                <>
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    onClick={handleDownloadAll}
-                    sx={{ mb: 2 }}
-                  >
-                    Download All as ZIP
-                  </Button>
-                <Button
-  variant="outlined"
-  color="error"
-  onClick={() => {
-    setDownloads([]);
-    localStorage.removeItem("downloads");
-  }}
-  sx={{ mb: 2, ml: 2 }}
->
-  Clear Calls
-</Button>
-                  <Divider sx={{ mb: 2 }} />
-                  {Object.entries(groupByRep(downloads)).map(([rep, files]) => (
-                    <Box key={rep} sx={{ mb: 3 }}>
-                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                          {rep}
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          color="secondary"
-                          size="small"
-                          onClick={() => { setCoachingRep(rep); setCoachingOpen(true); }}
-                        >
-                          Generate Coaching Plan
-                        </Button>
-                      </Stack>
-                      <Grid container spacing={2}>
-                        {files.map((dl, idx) => (
-                          <Grid item xs={12} md={6} key={dl.name + idx}>
-                            <Card
-                              variant="outlined"
-                              sx={{
-                                mb: 2,
-                                borderLeft: `6px solid ${theme.palette[dl.color]?.main || "#0F2A54"}`
-                              }}
-                            >
-                              <CardContent>
-                                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                                  <strong>{dl.name}</strong>
-                                </Typography>
-                                <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
-                                  <Chip label={dl.overall_perf || "N/A"} color={dl.color} />
-                                  <Chip label={dl.red_flags === "Yes" ? "Red Flags" : "No Red Flags"} color={dl.red_flags === "Yes" ? "error" : "success"} />
-                                  <Chip label={dl.rep_name || "Unknown Rep"} />
-                                </Stack>
-                                {dl.red_flags === "Yes" && (
-                                  <Alert severity="error" sx={{ mb: 1 }}>
-                                    {dl.red_flag_reason}
-                                  </Alert>
-                                )}
-                                <Button
-                                  variant="contained"
-                                  color="primary"
-                                  href={dl.url}
-                                  download={dl.name}
-                                  sx={{ mr: 2 }}
-                                >
-                                  Download Report
-                                </Button>
-                              </CardContent>
-                            </Card>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    </Box>
-                  ))}
-                </>
-              )}
-            </Paper>
+                {downloads.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No analysis reports yet.
+                  </Typography>
+                ) : (
+                  <>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={handleDownloadAll}
+                      sx={{ mb: 2 }}
+                    >
+                      Download All as ZIP
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => {
+                        setDownloads([]);
+                        localStorage.removeItem("downloads");
+                      }}
+                      sx={{ mb: 2, ml: 2 }}
+                    >
+                      Clear Calls
+                    </Button>
+                    <Divider sx={{ mb: 2 }} />
+                    {Object.entries(groupByRep(downloads)).map(([rep, files]) => (
+                      <Box key={rep} sx={{ mb: 3 }}>
+                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                            {rep}
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            color="secondary"
+                            size="small"
+                            onClick={() => { setCoachingRep(rep); setCoachingOpen(true); }}
+                          >
+                            Generate Coaching Plan
+                          </Button>
+                        </Stack>
+                        <Grid container spacing={2}>
+                          {files.map((dl, idx) => (
+                            <Grid item xs={12} md={6} key={dl.name + idx}>
+                              <Card
+                                variant="outlined"
+                                sx={{
+                                  mb: 2,
+                                  borderLeft: `6px solid ${theme.palette[dl.color]?.main || "#0F2A54"}`
+                                }}
+                              >
+                                <CardContent>
+                                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                                    <strong>{dl.name}</strong>
+                                  </Typography>
+                                  <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
+                                    <Chip label={dl.overall_perf || "N/A"} color={dl.color} />
+                                    <Chip label={dl.red_flags === "Yes" ? "Red Flags" : "No Red Flags"} color={dl.red_flags === "Yes" ? "error" : "success"} />
+                                    <Chip label={dl.rep_name || "Unknown Rep"} />
+                                  </Stack>
+                                  {dl.red_flags === "Yes" && (
+                                    <Alert severity="error" sx={{ mb: 1 }}>
+                                      {dl.red_flag_reason}
+                                    </Alert>
+                                  )}
+                                  <Button
+                                    variant="contained"
+                                    color="primary"
+                                    href={dl.url}
+                                    download={dl.name}
+                                    sx={{ mr: 2 }}
+                                  >
+                                    Download Report
+                                  </Button>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                    ))}
+                  </>
+                )}
+              </Paper>
+            </Grid>
           </Grid>
-        </Grid>
-      )}
-    </Container>
-    {/* Buy Minutes Dialog */}
-    <Dialog open={buyDialogOpen} onClose={() => setBuyDialogOpen(false)}>
-      <DialogTitle>Buy Minutes</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" sx={{ mb: 2 }}>
-          $2 per hour of processed talk time (~$0.033/minute). Minutes never expire.
-        </Typography>
-        <TextField
-          label="Minutes to buy"
-          type="number"
-          value={buyAmount}
-          onChange={e => setBuyAmount(Number(e.target.value))}
-          fullWidth
-          sx={{ mb: 2 }}
-          inputProps={{ min: 1 }}
-        />
-        {buyError && <Alert severity="error">{buyError}</Alert>}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setBuyDialogOpen(false)}>Cancel</Button>
-        <Button
-          onClick={handleBuyMinutes}
-          disabled={buyLoading}
-          variant="contained"
-          color="primary"
-        >
-          {buyLoading ? "Processing…" : "Buy"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-    {/* Coaching Plan Modal */}
-    <CoachingPlanModal
-      open={coachingOpen}
-      onClose={() => setCoachingOpen(false)}
-      repName={coachingRep}
-      jwt={jwt}
-    />
-  </ThemeProvider>
-);
+        )}
+      </Container>
+      {/* Buy Minutes Dialog */}
+      <Dialog open={buyDialogOpen} onClose={() => setBuyDialogOpen(false)}>
+        <DialogTitle>Buy Minutes</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            $2 per hour of processed talk time (~$0.033/minute). Minutes never expire.
+          </Typography>
+          <TextField
+            label="Minutes to buy"
+            type="number"
+            value={buyAmount}
+            onChange={e => setBuyAmount(Number(e.target.value))}
+            fullWidth
+            sx={{ mb: 2 }}
+            inputProps={{ min: 1 }}
+          />
+          {buyError && <Alert severity="error">{buyError}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBuyDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleBuyMinutes}
+            disabled={buyLoading}
+            variant="contained"
+            color="primary"
+          >
+            {buyLoading ? "Processing…" : "Buy"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Coaching Plan Modal */}
+      <CoachingPlanModal
+        open={coachingOpen}
+        onClose={() => setCoachingOpen(false)}
+        repName={coachingRep}
+        jwt={jwt}
+      />
+    </ThemeProvider>
+  );
 }

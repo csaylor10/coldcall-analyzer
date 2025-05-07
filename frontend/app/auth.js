@@ -10,35 +10,47 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+
   const handleSubmit = async () => {
     setError("");
     setMessage("");
+
     try {
+      // Ensure code runs only in browser (window & localStorage)
+      if (typeof window === 'undefined') return;
+
+      const origin = window.location.origin;
+
       if (isLogin) {
         // Login
         const response = await axios.post(
-          "http://localhost:8000/auth/jwt/login",
+          `${origin}/auth/jwt/login`,
           new URLSearchParams({ username: email, password })
         );
+
         localStorage.setItem("jwt", response.data.access_token);
         setMessage("🎉 Login successful!");
         window.location.href = "/";
       } else {
         // Register
-        await axios.post("http://localhost:8000/auth/register", {
+        await axios.post(`${origin}/auth/register`, {
           email,
           password,
           is_active: true,
           is_superuser: false,
           is_verified: false,
         });
+
         setMessage("✅ Registration successful! You can now log in.");
         setIsLogin(true);
       }
+
     } catch (err) {
-      setError(err.response?.data.detail || "Something went wrong!");
+      const errorMessage = err?.response?.data?.detail || "Something went wrong!";
+      setError(errorMessage);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-100 flex items-center justify-center">

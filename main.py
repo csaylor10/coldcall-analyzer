@@ -261,15 +261,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# app.mount("/static", StaticFiles(directory="static"), name="static")
-# @app.get("/")
-# def serve_frontend() -> HTMLResponse:
-#     """
-#     Serve the Frontend
-#     """
-#     index_path = os.path.join("static", "index.html")
-#     with open(index_path) as f:
-#         return HTMLResponse(content=f.read())
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+def serve_frontend() -> HTMLResponse:
+    """
+    Serve the Frontend
+    """
+    index_path = os.path.join("static", "index.html")
+    with open(index_path) as f:
+        return HTMLResponse(content=f.read())
 
 
 # Custom middleware to log authentication failures (additional layer)
