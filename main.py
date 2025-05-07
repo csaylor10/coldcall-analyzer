@@ -1,4 +1,36 @@
 # Ensure NLTK data is available and force re-download if needed
+from fastapi.responses import JSONResponse, HTMLResponse
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
+from audio_utils import process_audio_job, sync_transcribe, split_audio, set_async_session, get_audio_duration, transcribe_audio_chunk, fuzzy_match_rep_name
+from models import User, Job, Base
+from tenacity import retry, stop_after_attempt, wait_exponential
+import jwt
+from celery.backends.redis import RedisBackend
+from celery.result import AsyncResult
+from dotenv import load_dotenv
+import time
+import sys
+import logging
+from datetime import datetime
+import json
+import re
+import openai
+from typing import List, Optional
+import uuid
+from sqlalchemy import text
+from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi_users.authentication import AuthenticationBackend, JWTStrategy, BearerTransport
+from fastapi_users.manager import BaseUserManager
+from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users import FastAPIUsers, schemas
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request, BackgroundTasks, Security
+import multiprocessing
 import nltk
 import os
 # NLTK_DATA_PATH = 'workspace/fastapi_project/nltk_data'
@@ -8,42 +40,12 @@ nltk.data.path = [NLTK_DATA_PATH]
 nltk.download('punkt', download_dir=NLTK_DATA_PATH, force=True)
 nltk.download('wordnet', download_dir=NLTK_DATA_PATH, force=True)
 
-import multiprocessing
 multiprocessing.set_start_method("spawn", force=True)
 
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request, BackgroundTasks, Security
-from fastapi.responses import JSONResponse,HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi_users import FastAPIUsers, schemas
-from fastapi_users.db import SQLAlchemyUserDatabase
-from fastapi_users.manager import BaseUserManager
-from fastapi_users.authentication import AuthenticationBackend, JWTStrategy, BearerTransport
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
-from sqlalchemy import text
-import uuid
-from typing import List, Optional
-import openai
-import re
-import json
-from datetime import datetime
-import logging
-import sys
-import time
-from dotenv import load_dotenv
-from celery.result import AsyncResult
-from celery.backends.redis import RedisBackend
-import jwt
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Import models from models.py
-from models import User, Job, Base
 
 # Import from audio_utils
-from audio_utils import process_audio_job, sync_transcribe, split_audio, set_async_session, get_audio_duration, transcribe_audio_chunk, fuzzy_match_rep_name
 
 load_dotenv()
 print("OPENAI_API_KEY loaded:", os.getenv("OPENAI_API_KEY"))
@@ -57,7 +59,8 @@ logging.basicConfig(
 )
 
 # Create a custom formatter
-formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 
 # Apply the formatter to the root logger's handlers
 for handler in logging.getLogger().handlers:
@@ -70,7 +73,8 @@ logger = logging.getLogger("coldcall")
 
 DATABASE_URL = "sqlite+aiosqlite:///./database.db"
 engine = create_async_engine(DATABASE_URL)
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async_session = sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False)
 
 # Set the async_session in audio_utils
 set_async_session(async_session)
@@ -78,16 +82,16 @@ set_async_session(async_session)
 COMPANY = os.getenv('COMPANY', 'Greener Living')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-from nltk.stem import WordNetLemmatizer
-from nltk.tokenize import word_tokenize
 
 async def get_user_db():
     async with async_session() as session:
         yield SQLAlchemyUserDatabase(session, User)
 
+
 class UserRead(schemas.BaseUser[uuid.UUID]):
     minutes: int = 10000
     custom_red_flags: List[str] = []
+
 
 class UserCreate(schemas.BaseUserCreate):
     email: str
@@ -95,11 +99,14 @@ class UserCreate(schemas.BaseUserCreate):
     minutes: Optional[int] = 10000
     custom_red_flags: Optional[List[str]] = []
 
+
 class UserUpdate(schemas.BaseUserUpdate):
     minutes: Optional[int] = 10000
     custom_red_flags: Optional[List[str]] = []
 
+
 SECRET = "CHANGE_ME_TO_A_SECURE_RANDOM_STRING"
+
 
 class UserManager(BaseUserManager[User, uuid.UUID]):
     user_db_model = User
@@ -133,13 +140,17 @@ class UserManager(BaseUserManager[User, uuid.UUID]):
             # Return the string representation with hyphens
             return str(uuid_obj)
         except ValueError as e:
-            logger.error(f"Invalid UUID format for user ID: {value}, error: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Invalid user ID format: {str(e)}")
+            logger.error(
+                f"Invalid UUID format for user ID: {value}, error: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid user ID format: {str(e)}")
+
 
 async def get_user_manager(user_db=Depends(get_user_db)):
     yield UserManager(user_db)
 
 bearer_transport = BearerTransport(tokenUrl="auth/jwt/login")
+
 
 class CustomJWTStrategy(JWTStrategy):
     async def read_token(self, token: Optional[str], user_manager) -> Optional[User]:
@@ -159,27 +170,35 @@ class CustomJWTStrategy(JWTStrategy):
             user_id = payload.get("sub")
             if user_id is None:
                 logger.error("Token payload does not contain 'sub' claim")
-                raise HTTPException(status_code=401, detail="Invalid token: no user ID")
+                raise HTTPException(
+                    status_code=401, detail="Invalid token: no user ID")
             user = await user_manager.get(user_manager.parse_id(user_id))
             if user is None:
                 logger.error(f"User not found for ID: {user_id}")
                 raise HTTPException(status_code=401, detail="User not found")
             if not user.is_active:
                 logger.error(f"User {user_id} is not active")
-                raise HTTPException(status_code=401, detail="User is not active")
+                raise HTTPException(
+                    status_code=401, detail="User is not active")
             return user
         except jwt.ExpiredSignatureError as e:
             logger.error(f"Token expired: {str(e)}")
-            raise HTTPException(status_code=401, detail=f"Token expired: {str(e)}")
+            raise HTTPException(
+                status_code=401, detail=f"Token expired: {str(e)}")
         except jwt.InvalidTokenError as e:
             logger.error(f"Invalid token: {str(e)}")
-            raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+            raise HTTPException(
+                status_code=401, detail=f"Invalid token: {str(e)}")
         except Exception as e:
-            logger.error(f"Unexpected error during token validation: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=401, detail=f"Token validation error: {str(e)}")
+            logger.error(
+                f"Unexpected error during token validation: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=401, detail=f"Token validation error: {str(e)}")
+
 
 def get_jwt_strategy() -> CustomJWTStrategy:
     return CustomJWTStrategy(secret=SECRET, lifetime_seconds=3600)
+
 
 auth_backend = AuthenticationBackend(
     name="jwt",
@@ -195,6 +214,7 @@ fastapi_users = FastAPIUsers(
 # Custom dependency to log authentication failures
 security = HTTPBearer()
 
+
 async def current_user_with_logging(
     credentials: HTTPAuthorizationCredentials = Security(security),
     user=Depends(fastapi_users.current_user(active=True))
@@ -203,25 +223,30 @@ async def current_user_with_logging(
         # Decode the token to log its details
         token = credentials.credentials
         try:
-            decoded_token = jwt.decode(token, SECRET, algorithms=["HS256"], audience=["fastapi-users:auth"])
+            decoded_token = jwt.decode(token, SECRET, algorithms=[
+                                       "HS256"], audience=["fastapi-users:auth"])
             logger.debug(f"Token details: {decoded_token}")
         except jwt.ExpiredSignatureError as e:
             logger.error(f"Token expired: {str(e)}")
             raise HTTPException(status_code=401, detail="Token expired")
         except jwt.InvalidTokenError as e:
             logger.error(f"Invalid token: {str(e)}")
-            raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+            raise HTTPException(
+                status_code=401, detail=f"Invalid token: {str(e)}")
 
         if user is None:
             logger.error("User not found or inactive")
-            raise HTTPException(status_code=401, detail="User not found or inactive")
+            raise HTTPException(
+                status_code=401, detail="User not found or inactive")
         return user
     except HTTPException as e:
         logger.error(f"Authentication failed: {str(e.detail)}")
         raise e
     except Exception as e:
-        logger.error(f"Unexpected error during authentication: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+        logger.error(
+            f"Unexpected error during authentication: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=401, detail=f"Authentication error: {str(e)}")
 
 app = FastAPI()
 
@@ -236,15 +261,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/static", StaticFiles(directory="static"), name="static")
-@app.get("/")
-def serve_frontend() -> HTMLResponse:
-    """
-    Serve the Frontend
-    """
-    index_path = os.path.join("static", "index.html")
-    with open(index_path) as f:
-        return HTMLResponse(content=f.read())
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+# @app.get("/")
+# def serve_frontend() -> HTMLResponse:
+#     """
+#     Serve the Frontend
+#     """
+#     index_path = os.path.join("static", "index.html")
+#     with open(index_path) as f:
+#         return HTMLResponse(content=f.read())
 
 
 # Custom middleware to log authentication failures (additional layer)
@@ -252,14 +277,17 @@ def serve_frontend() -> HTMLResponse:
 async def log_authentication_failures(request: Request, call_next):
     response = await call_next(request)
     if response.status_code == 401:
-        auth_header = request.headers.get("Authorization", "No Authorization header")
-        logger.error(f"Authentication failed for request {request.url}: status={response.status_code}, Authorization={auth_header}")
+        auth_header = request.headers.get(
+            "Authorization", "No Authorization header")
+        logger.error(
+            f"Authentication failed for request {request.url}: status={response.status_code}, Authorization={auth_header}")
     return response
+
 
 @app.on_event("startup")
 async def on_startup():
     logger.info("Starting FastAPI application and initializing database...")
-    
+
     # Check database connection
     try:
         async with engine.begin() as conn:
@@ -297,6 +325,7 @@ app.include_router(
     tags=["users"],
 )
 
+
 @app.post("/auth/register")
 async def register_user(user_create: UserCreate, user_manager: UserManager = Depends(get_user_manager)):
     try:
@@ -305,7 +334,6 @@ async def register_user(user_create: UserCreate, user_manager: UserManager = Dep
     except Exception as e:
         logger.error(f"User registration failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
-
 
 
 @app.get("/health")
@@ -317,13 +345,13 @@ async def health_check():
         # Check database connection
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        
+
         # Check Redis connection via Celery backend
         task_result = AsyncResult("health-check-dummy-task")
         backend = task_result.backend
         if isinstance(backend, RedisBackend):
             backend.client.ping()
-        
+
         return {"status": "healthy", "message": "API server is running, database and Redis are accessible"}
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}", exc_info=True)
@@ -341,6 +369,8 @@ KNOWN_CATEGORIES = [
 ]
 
 # --- Fuzzy match call category helper (robust import for multiprocessing) ---
+
+
 def fuzzy_match_category(extracted_category, known_categories=None):
     try:
         from rapidfuzz import process as rapidfuzz_process, fuzz
@@ -356,6 +386,8 @@ def fuzzy_match_category(extracted_category, known_categories=None):
     return match if match else "Unknown category"
 
 # --- Robust Red Flag Detection Helper ---
+
+
 def robust_red_flag_detection(transcript, custom_red_flags, score_cutoff=85):
     try:
         from rapidfuzz import process as rapidfuzz_process, fuzz
@@ -382,6 +414,7 @@ def robust_red_flag_detection(transcript, custom_red_flags, score_cutoff=85):
             flag_hits.append(flag)
     return flag_hits
 
+
 @app.post("/audio/", status_code=202)
 async def upload_audio(
     files: List[UploadFile] = File(...),
@@ -393,12 +426,15 @@ async def upload_audio(
     """
     start_time = time.perf_counter()
     logger.info(f"User {user.id} uploading {len(files)} files")
-    logger.debug(f"User details: email={user.email}, is_active={user.is_active}, minutes={user.minutes}")
+    logger.debug(
+        f"User details: email={user.email}, is_active={user.is_active}, minutes={user.minutes}")
     if getattr(user, 'minutes', 0) is None or user.minutes <= 0:
-        logger.warning(f"User {user.id} has insufficient minutes: {user.minutes}")
+        logger.warning(
+            f"User {user.id} has insufficient minutes: {user.minutes}")
         raise HTTPException(402, "Insufficient minutes")
     params_dict = json.loads(params)
-    custom_red_flags: List[str] = params_dict.get("custom_red_flags", user.custom_red_flags)
+    custom_red_flags: List[str] = params_dict.get(
+        "custom_red_flags", user.custom_red_flags)
     current_reps: list = params_dict.get("current_reps", [])
     os.makedirs("./uploads", exist_ok=True)
     job_ids = []
@@ -411,14 +447,16 @@ async def upload_audio(
                 filepath = f"./uploads/{job_id}_{upload.filename}"
                 with open(filepath, "wb") as audio_file:
                     audio_file.write(await upload.read())
-                
+
                 # Check duration and deduct minutes
                 duration = get_audio_duration(filepath)
                 minutes = max(1, int(round(duration / 60.0)))
-                logger.debug(f"File {upload.filename}: duration={duration} seconds, required minutes={minutes}")
+                logger.debug(
+                    f"File {upload.filename}: duration={duration} seconds, required minutes={minutes}")
                 if user.minutes < minutes:
                     os.remove(filepath)
-                    raise HTTPException(402, f"Insufficient minutes. This file requires {minutes} minute(s).")
+                    raise HTTPException(
+                        402, f"Insufficient minutes. This file requires {minutes} minute(s).")
                 user.minutes -= minutes
 
                 # Create job in database
@@ -457,14 +495,18 @@ async def upload_audio(
                 tasks.append(task)
 
             except Exception as e:
-                logger.error(f"Failed to process file {upload.filename}: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Failed to process file {upload.filename}: {str(e)}", exc_info=True)
                 if os.path.exists(filepath):
                     os.remove(filepath)
-                raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to process file: {str(e)}")
 
     elapsed = time.perf_counter() - start_time
-    logger.info(f"upload_audio processed {len(job_ids)} files in {elapsed:.2f} seconds")
+    logger.info(
+        f"upload_audio processed {len(job_ids)} files in {elapsed:.2f} seconds")
     return {"job_ids": [task.id for task in tasks], "status": "accepted"}
+
 
 @app.get("/tasks/{task_id}")
 async def get_task_status(task_id: str, user: User = Depends(current_user_with_logging)):
@@ -488,24 +530,30 @@ async def get_task_status(task_id: str, user: User = Depends(current_user_with_l
             job = result.scalars().first()
             if job:
                 if job.user_id != str(user.id):
-                    logger.warning(f"User {user.id} not authorized for job {job.id}")
-                    raise HTTPException(status_code=403, detail="Not authorized")
-                logger.debug(f"Found Job for task {task_id} in database: {job.id}")
+                    logger.warning(
+                        f"User {user.id} not authorized for job {job.id}")
+                    raise HTTPException(
+                        status_code=403, detail="Not authorized")
+                logger.debug(
+                    f"Found Job for task {task_id} in database: {job.id}")
 
         # Safely retrieve raw task metadata for debugging
         try:
             backend = task_result.backend
             if isinstance(backend, RedisBackend):
-                raw_meta = backend.client.get(backend.get_key_for_task(task_id))
+                raw_meta = backend.client.get(
+                    backend.get_key_for_task(task_id))
                 logger.debug(f"Raw task metadata for {task_id}: {raw_meta}")
         except Exception as e:
-            logger.warning(f"Failed to retrieve raw task metadata for {task_id}: {str(e)}")
+            logger.warning(
+                f"Failed to retrieve raw task metadata for {task_id}: {str(e)}")
 
         # Safely retrieve task state
         try:
             state = task_result.state
         except Exception as e:
-            logger.error(f"Failed to retrieve state for task {task_id}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Failed to retrieve state for task {task_id}: {str(e)}", exc_info=True)
             # Fallback to job status from database if Celery fails and Job exists
             state = job.status.upper() if job and job.status else "UNKNOWN"
 
@@ -541,17 +589,20 @@ async def get_task_status(task_id: str, user: User = Depends(current_user_with_l
             else:
                 # Fallback to job data if info is not a dict and Job exists
                 progress = 0
-                error = job.result.get('error') if job and job.result and isinstance(job.result, dict) and 'error' in job.result else f"Unexpected task info format: {str(info)}"
+                error = job.result.get('error') if job and job.result and isinstance(
+                    job.result, dict) and 'error' in job.result else f"Unexpected task info format: {str(info)}"
 
         # If result is still None and the job has a result, use it
         if result is None and job and job.status == "done" and job.result:
-            result = job.result if isinstance(job.result, dict) else job.result.get('result') if isinstance(job.result, dict) else None
+            result = job.result if isinstance(job.result, dict) else job.result.get(
+                'result') if isinstance(job.result, dict) else None
             if not error and isinstance(job.result, dict) and 'error' in job.result:
                 error = job.result.get('error')
 
         # If no Job was found, return the task status directly (for chord tasks)
         if not job:
-            logger.debug(f"No Job found for task {task_id}, returning Celery task status directly")
+            logger.debug(
+                f"No Job found for task {task_id}, returning Celery task status directly")
             return {
                 "state": state,
                 "progress": progress,
@@ -559,7 +610,8 @@ async def get_task_status(task_id: str, user: User = Depends(current_user_with_l
                 "error": error
             }
 
-        logger.debug(f"Task {task_id} status: state={state}, progress={progress}, error={error}")
+        logger.debug(
+            f"Task {task_id} status: state={state}, progress={progress}, error={error}")
         return {
             "state": state,
             "progress": progress,
@@ -569,13 +621,15 @@ async def get_task_status(task_id: str, user: User = Depends(current_user_with_l
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"Unexpected error in get_task_status for task {task_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Unexpected error in get_task_status for task {task_id}: {str(e)}", exc_info=True)
         return {
             "state": "ERROR",
             "progress": 0,
             "result": None,
             "error": f"Internal server error: {str(e)}"
         }
+
 
 @app.get("/job-status/{job_id}")
 async def job_status(job_id: str, user: User = Depends(current_user_with_logging)):
@@ -596,6 +650,7 @@ async def job_status(job_id: str, user: User = Depends(current_user_with_logging
             }
         return {"status": job.status, "result": job.result}
 
+
 @app.post("/update-red-flags/")
 async def update_red_flags(red_flags: List[str], user: User = Depends(current_user_with_logging)):
     logger.info(f"User {user.id} updating red flags")
@@ -606,16 +661,19 @@ async def update_red_flags(red_flags: List[str], user: User = Depends(current_us
     logger.info(f"User {user.id} red flags updated")
     return {"custom_red_flags": user.custom_red_flags}
 
+
 @app.get("/red-flags/")
 async def get_red_flags(user: User = Depends(current_user_with_logging)):
     logger.info(f"User {user.id} retrieving red flags")
     logger.info(f"User {user.id} red flags: {user.custom_red_flags}")
     return {"custom_red_flags": user.custom_red_flags}
 
+
 @app.get("/users/me")
 async def get_me(user: User = Depends(current_user_with_logging)):
     logger.info(f"User {user.id} retrieving user info")
-    logger.info(f"User {user.id} info: {user.email}, {user.minutes}, {user.custom_red_flags}, {user.is_active}, {user.is_superuser}, {user.is_verified}")
+    logger.info(
+        f"User {user.id} info: {user.email}, {user.minutes}, {user.custom_red_flags}, {user.is_active}, {user.is_superuser}, {user.is_verified}")
     return {
         "id": str(user.id),
         "email": user.email,
@@ -625,6 +683,7 @@ async def get_me(user: User = Depends(current_user_with_logging)):
         "is_superuser": user.is_superuser,
         "is_verified": user.is_verified,
     }
+
 
 @app.post("/buy-minutes/")
 async def buy_minutes(amount: int = Form(...), user: User = Depends(current_user_with_logging)):
@@ -639,6 +698,7 @@ async def buy_minutes(amount: int = Form(...), user: User = Depends(current_user
     logger.info(f"User {user.id} minutes updated: {user.minutes}")
     return {"minutes": user.minutes}
 
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def call_openai(prompt):
     response = openai.ChatCompletion.create(
@@ -648,6 +708,7 @@ def call_openai(prompt):
         max_tokens=1024
     )
     return response
+
 
 @app.post("/api/generate-coaching-plan")
 async def generate_coaching_plan(request: Request):
@@ -664,16 +725,17 @@ async def generate_coaching_plan(request: Request):
             input_cost = prompt_tokens * 0.000005
             output_cost = completion_tokens * 0.000015
             total_cost = input_cost + output_cost
-            logger.info(f"OpenAI usage: prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}, total_cost=${total_cost:.6f}")
+            logger.info(
+                f"OpenAI usage: prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}, total_cost=${total_cost:.6f}")
         coaching_plan = response.choices[0].message.content.strip()
         return {"result": coaching_plan, "usage": response.get('usage', {}), "cost": total_cost if 'usage' in response else None}
     except Exception as e:
 
         app.include_router(
-    fastapi_users.get_auth_router(auth_backend),
-    prefix="/auth/jwt",
-    tags=["auth"],
-)
+            fastapi_users.get_auth_router(auth_backend),
+            prefix="/auth/jwt",
+            tags=["auth"],
+        )
 
 app.include_router(
     fastapi_users.get_register_router(UserRead, UserCreate),
@@ -688,6 +750,8 @@ app.include_router(
 )
 
 # Explicit /auth/register route (moved to after the router inclusions)
+
+
 @app.post("/auth/register")
 async def register_user(user_create: UserCreate, user_manager: UserManager = Depends(get_user_manager)):
     try:

@@ -1,11 +1,11 @@
-FROM oven/bun:latest AS frontend-builder
+# FROM oven/bun:latest AS frontend-builder
 
-WORKDIR /frontend
+# WORKDIR /frontend
 
-COPY frontend/ .
+# COPY frontend/ .
 
-RUN bun install
-RUN bun run build
+# RUN bun install
+# RUN bun run build
 
 # Use Python 3.11 slim base image
 FROM python:3.11-slim
@@ -45,13 +45,13 @@ RUN ls -lh /root/.cache/faster_whisper || echo "Model cache directory not found"
 # Copy application code
 COPY main.py .
 COPY models/ ./models
-COPY nltk_data/ ./nltk_data
+# COPY nltk_data/ ./nltk_data
 COPY celery_worker.py .
 COPY .env .
 COPY env .
 COPY models.py .
 # Copy the built frontend
-COPY --from=frontend-builder /frontend/build/ ./static
+# COPY --from=frontend-builder /frontend/build/ ./static
 
 RUN mkdir -p /app/uploads
 
