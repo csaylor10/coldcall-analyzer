@@ -44,7 +44,7 @@ RUN ls -lh /root/.cache/faster_whisper || echo "Model cache directory not found"
 
 # Copy application code
 COPY main.py .
-COPY models/ ./models
+# COPY models/ ./models
 # COPY nltk_data/ ./nltk_data
 COPY celery_worker.py .
 COPY .env .
