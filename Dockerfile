@@ -8,7 +8,7 @@
 # RUN bun run build
 
 # Use Python 3.11 slim base image
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 # Install system dependencies for audio processing and PyTorch
 RUN apt-get update && apt-get install -y \
@@ -50,12 +50,15 @@ COPY celery_worker.py .
 COPY .env .
 COPY env .
 COPY models.py .
+COPY audio_utils.py .
 # Copy the built frontend
 # COPY --from=frontend-builder /frontend/build/ ./static
 
 RUN mkdir -p /app/uploads
 
 COPY supervisord.conf /etc/supervisord.conf
+
+EXPOSE 8000
 
 CMD ["supervisord", "-c", "/etc/supervisord.conf"]
 
